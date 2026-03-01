@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <tuple>
 #include <type_traits>
@@ -71,6 +72,42 @@ private:
 };
 
 template <typename... Ps> Dispatcher(Ps...) -> Dispatcher<Ps...>;
+
+// ============================================================
+// DynamicDispatcher
+// Runtime rule aggregation (hybrid model)
+// ============================================================
+
+template <typename T, typename R> class DynamicDispatcher {
+public:
+  using Rule = std::function<std::optional<R>(const T &)>;
+
+  DynamicDispatcher() = default;
+
+  template <typename P> void add(P &&p) {
+    using Decayed = std::decay_t<P>;
+
+    static_assert(std::is_same_v<T, typename Decayed::T>,
+                  "Pattern input type mismatch");
+
+    static_assert(std::is_same_v<R, typename Decayed::U>,
+                  "Pattern output type mismatch");
+
+    rules.emplace_back(
+        [pat = std::forward<P>(p)](const T &t) { return pat(t); });
+  }
+
+  std::optional<R> operator()(const T &value) const {
+    for (const auto &rule : rules) {
+      if (auto r = rule(value))
+        return r;
+    }
+    return std::nullopt;
+  }
+
+private:
+  std::vector<Rule> rules;
+};
 
 // ============================================================
 // map

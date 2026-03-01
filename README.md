@@ -162,6 +162,63 @@ Dispatcher semantics:
 - Returns first successful match
 - Returns std::nullopt if none match
 
+## Dynamic Dispatcher
+
+Same as above, but allows for runtime extension.
+
+```c++
+#include <variant>
+#include <iostream>
+#include "pattern.hpp"
+
+using namespace pattern;
+
+using E = std::variant<int, bool>;
+
+int main() {
+
+    auto int_pat = Pattern{
+        [](const E& e) -> std::optional<std::string> {
+            if (auto p = std::get_if<int>(&e))
+                return "int: " + std::to_string(*p);
+            return std::nullopt;
+        }
+    };
+
+    auto bool_pat = Pattern{
+        [](const E& e) -> std::optional<std::string> {
+            if (auto p = std::get_if<bool>(&e))
+                return std::string("bool: ") + (*p ? "true" : "false");
+            return std::nullopt;
+        }
+    };
+
+    DynamicDispatcher<E, std::string> dispatcher;
+
+    dispatcher.add(int_pat);   // static pattern
+    dispatcher.add(bool_pat);  // static pattern
+
+    // runtime rule
+    dispatcher.add([](const E& e) -> std::optional<std::string> {
+        if (auto p = std::get_if<int>(&e); p && *p == 0)
+            return "zero";
+        return std::nullopt;
+    });
+
+    E e = true;
+
+    if (auto r = dispatcher(e)) {
+        std::cout << *r << "\n";
+    }
+}
+```
+
+Important trade-offs:
+
+- Runtime indirection via `std::function`
+- Linear scan over rules
+- Registration order matters
+
 ## Arbitrary Conditions
 
 Patterns are not restricted to structural matching.
